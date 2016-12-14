@@ -18,6 +18,7 @@ package main
 import (
 	"fmt"
 	"github.com/GeertJohan/go.rice"
+	"github.com/matir/sshdog/daemon"
 	"os"
 	"strconv"
 	"strings"
@@ -34,6 +35,7 @@ func (d Debugger) Debug(format string, args ...interface{}) {
 
 var dbg Debugger = true
 
+// Lookup the port number
 func getPort(box *rice.Box) int {
 	if len(os.Args) > 1 {
 		if port, err := strconv.Atoi(os.Args[1]); err != nil {
@@ -53,8 +55,35 @@ func getPort(box *rice.Box) int {
 	return 2222 // default
 }
 
+// Just check if a file exists
+func fileExists(box *rice.Box, name string) bool {
+	_, err := box.Bytes(name)
+	return err == nil
+}
+
+// Should we daemonize?
+func shouldDaemonize(box *rice.Box) bool {
+	return fileExists(box, "daemon")
+}
+
+// Should we be silent?
+func beQuiet(box *rice.Box) bool {
+	return fileExists(box, "quiet")
+}
+
 func main() {
 	box := rice.MustFindBox("config")
+
+	if beQuiet(box) {
+		dbg = false
+	}
+
+	if shouldDaemonize(box) {
+		if err := daemon.Daemonize(); err != nil {
+			dbg.Debug("Error daemonizing: %v", err)
+		}
+	}
+
 	server := NewServer()
 
 	hasHostKeys := false

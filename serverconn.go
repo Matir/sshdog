@@ -17,7 +17,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/Matir/sshdog/pty"
+	"github.com/matir/sshdog/pty"
 	"golang.org/x/crypto/ssh"
 	"io"
 	"net"
