@@ -48,7 +48,13 @@ func installWindowsService(start bool) error {
 	defer svcMgr.Disconnect()
 	if s, err := svcMgr.OpenService(WindowsServiceName); err == nil {
 		// Already installed
-		s.Close()
+		defer s.Close()
+		if len(os.Args) > 1 && os.Args[1] == "uninstall" {
+			err = s.Delete()
+			if err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 	cfg := mgr.Config{
@@ -109,10 +115,13 @@ func findExePath() (string, error) {
 type winService struct{ mainFunc DaemonWorker }
 
 func (s *winService) Execute(args []string, cmdChan <-chan svc.ChangeRequest, statChan chan<- svc.Status) (bool, uint32) {
+	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	waitFunc, stopFunc := s.mainFunc()
 	if stopFunc == nil {
 		return true, 1
 	}
+	statChan <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
+
 loop:
 	for {
 		if cmd, ok := <-cmdChan; !ok {
