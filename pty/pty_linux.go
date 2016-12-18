@@ -83,11 +83,12 @@ func resize_pty(tty *os.File, size *ptyWindow) error {
 	return nil
 }
 
-func attach_pty(_ *os.File, cmd *exec.Cmd) error {
+func attach_pty(tty *os.File, cmd *exec.Cmd) error {
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}
 	cmd.SysProcAttr.Setsid = true
 	cmd.SysProcAttr.Setctty = true
+	cmd.SysProcAttr.Ctty = int(tty.Fd())
 	return nil
 }
