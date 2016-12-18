@@ -204,12 +204,9 @@ func (conn *ServerConn) ExecuteForChannel(shellCmd []string, ch ssh.Channel) {
 		proc.Dir = userInfo.HomeDir
 	}
 	if conn.pty == nil {
-		stdin, _ := proc.StdinPipe()
-		stdout, _ := proc.StdoutPipe()
-		stderr, _ := proc.StderrPipe()
-		go io.Copy(stdin, ch)
-		go io.Copy(ch, stdout)
-		go io.Copy(ch, stderr)
+		proc.Stdin = ch
+		proc.Stdout = ch
+		proc.Stderr = ch
 	} else {
 		conn.pty.AttachPty(proc)
 		conn.pty.AttachIO(ch, ch)
