@@ -43,7 +43,7 @@ func NewServer() *Server {
 	s.AuthorizedKeys = make(map[string]bool)
 	s.ServerConfig.PublicKeyCallback = s.VerifyPublicKey
 	s.stop = make(chan bool)
-	s.done = make(chan bool)
+	s.done = make(chan bool, 1)
 	return s
 }
 

@@ -109,10 +109,11 @@ func findExePath() (string, error) {
 type winService struct{ mainFunc DaemonWorker }
 
 func (s *winService) Execute(args []string, cmdChan <-chan svc.ChangeRequest, statChan chan<- svc.Status) (bool, uint32) {
-	_, stopFunc := s.mainFunc()
+	waitFunc, stopFunc := s.mainFunc()
 	if stopFunc == nil {
 		return true, 1
 	}
+loop:
 	for {
 		if cmd, ok := <-cmdChan; !ok {
 			break
@@ -123,6 +124,8 @@ func (s *winService) Execute(args []string, cmdChan <-chan svc.ChangeRequest, st
 			case svc.Stop, svc.Shutdown:
 				statChan <- svc.Status{State: svc.StopPending}
 				stopFunc()
+				waitFunc()
+				break loop
 			}
 		}
 	}
