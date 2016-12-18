@@ -28,6 +28,8 @@ type Server struct {
 	ServerConfig   ssh.ServerConfig
 	Socket         net.Listener
 	AuthorizedKeys map[string]bool
+	stop           chan bool
+	done           chan bool
 }
 
 var keyNames = []string{
@@ -40,10 +42,12 @@ func NewServer() *Server {
 	s := &Server{}
 	s.AuthorizedKeys = make(map[string]bool)
 	s.ServerConfig.PublicKeyCallback = s.VerifyPublicKey
+	s.stop = make(chan bool)
+	s.done = make(chan bool)
 	return s
 }
 
-func (s *Server) ListenAndServe(port int16) error {
+func (s *Server) listen(port int16) error {
 	sPort := ":" + strconv.Itoa(int(port))
 	if sock, err := net.Listen("tcp", sPort); err != nil {
 		dbg.Debug("Unable to listen: %v", err)
@@ -52,27 +56,94 @@ func (s *Server) ListenAndServe(port int16) error {
 		dbg.Debug("Listening on %s", sPort)
 		s.Socket = sock
 	}
-	for {
-		conn, err := s.Socket.Accept()
-		if err != nil {
-			dbg.Debug("Unable to accept: %v", err)
-			continue
-		}
-		dbg.Debug("Accepted connection from: %s", conn.RemoteAddr())
+	return nil
+}
 
-		sConn, err := NewServerConn(conn, s)
-		if err != nil {
-			if err == io.EOF {
-				dbg.Debug("Connection closed by remote host.")
-				continue
+func (s *Server) acceptChannel() <-chan net.Conn {
+	c := make(chan net.Conn)
+	go func() {
+		defer close(c)
+		for {
+			conn, err := s.Socket.Accept()
+			if err != nil {
+				dbg.Debug("Unable to accept: %v", err)
+				return
 			}
-			dbg.Debug("Unable to negotiate SSH: %v", err)
-			continue
+			dbg.Debug("Accepted connection from: %s", conn.RemoteAddr())
+			c <- conn
 		}
-		dbg.Debug("Authenticated client from: %s", sConn.RemoteAddr())
+	}()
+	return c
+}
 
-		go sConn.HandleConn()
+func (s *Server) handleConn(conn net.Conn) {
+	sConn, err := NewServerConn(conn, s)
+	if err != nil {
+		if err == io.EOF {
+			dbg.Debug("Connection closed by remote host.")
+			return
+		}
+		dbg.Debug("Unable to negotiate SSH: %v", err)
+		return
 	}
+	dbg.Debug("Authenticated client from: %s", sConn.RemoteAddr())
+
+	go sConn.HandleConn()
+}
+
+func (s *Server) serveLoop() error {
+	acceptChan := s.acceptChannel()
+	defer func() {
+		dbg.Debug("done serveLoop")
+		s.Socket.Close()
+		s.done <- true
+	}()
+	for {
+		dbg.Debug("select...")
+		select {
+		case conn, ok := <-acceptChan:
+			if ok {
+				s.handleConn(conn)
+			} else {
+				dbg.Debug("failed to accept")
+				acceptChan = nil
+				return nil
+			}
+		case <-s.stop:
+			dbg.Debug("Stop signal received, stopping.")
+			return nil
+		}
+	}
+	return nil
+}
+
+func (s *Server) ListenAndServe(port int16) (error, func()) {
+	if err := s.listen(port); err != nil {
+		return err, nil
+	}
+	go s.serveLoop()
+	return nil, s.Stop
+}
+
+func (s *Server) ListenAndServeForever(port int16) error {
+	if err, _ := s.ListenAndServe(port); err != nil {
+		return err
+	}
+	s.Wait()
+	return nil
+}
+
+// Wait for server shutdown
+func (s *Server) Wait() {
+	dbg.Debug("Waiting for shutdown.")
+	<-s.done
+}
+
+// Ask for shutdown
+func (s *Server) Stop() {
+	dbg.Debug("requesting shutdown.")
+	s.stop <- true
+	close(s.stop)
 }
 
 func (s *Server) AddAuthorizedKeys(keyData []byte) {

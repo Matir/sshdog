@@ -27,10 +27,12 @@ import (
 // Attempts to restart this process in the background.
 // This is not a *true* daemonize, as the process is
 // restarted.
-func Daemonize() error {
+func Daemonize(f DaemonWorker) error {
 	if done, err := alreadyDaemonized(); err != nil {
 		return err
 	} else if done {
+		waitFunc, _ := f()
+		waitFunc()
 		return nil
 	}
 

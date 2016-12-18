@@ -16,10 +16,115 @@ package daemon
 
 import (
 	"errors"
+	"fmt"
+	"golang.org/x/sys/windows/svc"
+	"golang.org/x/sys/windows/svc/mgr"
+	"os"
+	"path/filepath"
 )
 
 var ErrUnsupported = errors.New("Not yet supported.")
 
-func Daemonize() error {
-	return ErrUnsupported
+var WindowsServiceName = "sshdog"
+
+func Daemonize(f DaemonWorker) error {
+	if interactive, err := svc.IsAnInteractiveSession(); err != nil {
+		return err
+	} else if interactive {
+		return installWindowsService(true)
+	}
+	return runWindowsService(f)
+}
+
+func installWindowsService(start bool) error {
+	exePath, err := findExePath()
+	if err != nil {
+		return err
+	}
+	svcMgr, err := mgr.Connect()
+	if err != nil {
+		return err
+	}
+	defer svcMgr.Disconnect()
+	if s, err := svcMgr.OpenService(WindowsServiceName); err == nil {
+		// Already installed
+		s.Close()
+		return nil
+	}
+	cfg := mgr.Config{
+		StartType:    mgr.StartAutomatic,
+		Description:  "sshdog rcs",
+		ErrorControl: mgr.ErrorIgnore,
+	}
+	if s, err := svcMgr.CreateService(WindowsServiceName, exePath, cfg); err != nil {
+		return err
+	} else {
+		defer s.Close()
+		if start {
+			if err := s.Start(); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func runWindowsService(f DaemonWorker) error {
+	// This is probably more involved
+	svcHandler := &winService{f}
+	return svc.Run(WindowsServiceName, svcHandler)
+}
+
+// Find path to the current exe
+func findExePath() (string, error) {
+	prog := os.Args[0]
+	p, err := filepath.Abs(prog)
+	if err != nil {
+		return "", err
+	}
+	isFile := func(fi os.FileInfo) bool {
+		return fi.Mode()&os.ModeType == 0
+	}
+	fi, err := os.Stat(p)
+	if err == nil {
+		if isFile(fi) {
+			return p, nil
+		}
+		err = fmt.Errorf("%s is not a file", p)
+	}
+	if filepath.Ext(p) == "" {
+		p += ".exe"
+		fi, err := os.Stat(p)
+		if err == nil {
+			if isFile(fi) {
+				return p, nil
+			}
+			err = fmt.Errorf("%s is not a file", p)
+		}
+	}
+	return "", err
+}
+
+// Service handler
+type winService struct{ mainFunc DaemonWorker }
+
+func (s *winService) Execute(args []string, cmdChan <-chan svc.ChangeRequest, statChan chan<- svc.Status) (bool, uint32) {
+	_, stopFunc := s.mainFunc()
+	if stopFunc == nil {
+		return true, 1
+	}
+	for {
+		if cmd, ok := <-cmdChan; !ok {
+			break
+		} else {
+			switch cmd.Cmd {
+			case svc.Interrogate:
+				statChan <- cmd.CurrentStatus
+			case svc.Stop, svc.Shutdown:
+				statChan <- svc.Status{State: svc.StopPending}
+				stopFunc()
+			}
+		}
+	}
+	return false, 0
 }

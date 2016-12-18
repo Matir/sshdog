@@ -36,12 +36,12 @@ func (d Debugger) Debug(format string, args ...interface{}) {
 var dbg Debugger = true
 
 // Lookup the port number
-func getPort(box *rice.Box) int {
+func getPort(box *rice.Box) int16 {
 	if len(os.Args) > 1 {
 		if port, err := strconv.Atoi(os.Args[1]); err != nil {
 			dbg.Debug("Error parsing %s as port: %v", os.Args[1], err)
 		} else {
-			return port
+			return int16(port)
 		}
 	}
 	if portData, err := box.String("port"); err == nil {
@@ -49,7 +49,7 @@ func getPort(box *rice.Box) int {
 		if port, err := strconv.Atoi(portData); err != nil {
 			dbg.Debug("Error parsing %s as port: %v", portData, err)
 		} else {
-			return port
+			return int16(port)
 		}
 	}
 	return 2222 // default
@@ -71,24 +71,32 @@ func beQuiet(box *rice.Box) bool {
 	return fileExists(box, "quiet")
 }
 
-func main() {
-	box := rice.MustFindBox("config")
+var mainBox *rice.Box
 
-	if beQuiet(box) {
+func main() {
+	mainBox = rice.MustFindBox("config")
+
+	if beQuiet(mainBox) {
 		dbg = false
 	}
 
-	if shouldDaemonize(box) {
-		if err := daemon.Daemonize(); err != nil {
+	if shouldDaemonize(mainBox) {
+		if err := daemon.Daemonize(daemonStart); err != nil {
 			dbg.Debug("Error daemonizing: %v", err)
 		}
+	} else {
+		waitFunc, _ := daemonStart()
+		waitFunc()
 	}
+}
 
+// Actually run the implementation of the daemon
+func daemonStart() (waitFunc func(), stopFunc func()) {
 	server := NewServer()
 
 	hasHostKeys := false
 	for _, keyName := range keyNames {
-		if keyData, err := box.Bytes(keyName); err == nil {
+		if keyData, err := mainBox.Bytes(keyName); err == nil {
 			dbg.Debug("Adding hostkey file: %s", keyName)
 			server.AddHostkey(keyData)
 			hasHostKeys = true
@@ -99,12 +107,13 @@ func main() {
 		return
 	}
 
-	if authData, err := box.Bytes("authorized_keys"); err == nil {
+	if authData, err := mainBox.Bytes("authorized_keys"); err == nil {
 		dbg.Debug("Adding authorized_keys.")
 		server.AddAuthorizedKeys(authData)
 	} else {
 		dbg.Debug("No authorized keys found: %v", err)
 		return
 	}
-	server.ListenAndServe(int16(getPort(box)))
+	server.ListenAndServe(getPort(mainBox))
+	return server.Wait, server.Stop
 }
