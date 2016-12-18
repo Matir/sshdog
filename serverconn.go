@@ -107,12 +107,15 @@ type ExecRequest struct {
 	Cmd string
 }
 
-func defaultShell() string {
+func defaultShell() []string {
 	switch runtime.GOOS {
 	case "windows":
-		return "C:\\windows\\system32\\cmd.exe"
+		return []string{
+			"C:\\windows\\system32\\cmd.exe",
+			"/Q",
+		}
 	default:
-		return "/bin/sh"
+		return []string{"/bin/sh"}
 	}
 }
 
@@ -177,7 +180,7 @@ func (conn *ServerConn) HandleSessionChannel(wg *sync.WaitGroup, newChan ssh.New
 				dbg.Debug("Error unmarshaling exec: %v", err)
 				success = false
 			} else {
-				conn.ExecuteForChannel(execReq.Cmd, ch)
+				conn.ExecuteForChannel([]string{execReq.Cmd}, ch)
 				success = true
 			}
 			if req.WantReply {
@@ -194,8 +197,8 @@ func (conn *ServerConn) HandleSessionChannel(wg *sync.WaitGroup, newChan ssh.New
 }
 
 // Execute a process for the channel.
-func (conn *ServerConn) ExecuteForChannel(bin string, ch ssh.Channel) {
-	proc := exec.Command(bin)
+func (conn *ServerConn) ExecuteForChannel(shellCmd []string, ch ssh.Channel) {
+	proc := exec.Command(shellCmd[0], shellCmd[1:]...)
 	proc.Env = conn.environ
 	if userInfo, err := user.Current(); err == nil {
 		proc.Dir = userInfo.HomeDir
