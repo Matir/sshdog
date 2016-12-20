@@ -17,6 +17,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/google/shlex"
 	"github.com/matir/sshdog/pty"
 	"golang.org/x/crypto/ssh"
 	"io"
@@ -120,6 +121,7 @@ func defaultShell() []string {
 }
 
 func (conn *ServerConn) HandleSessionChannel(wg *sync.WaitGroup, newChan ssh.NewChannel) {
+	// TODO: refactor this, too long
 	defer wg.Done()
 	ch, reqs, err := newChan.Accept()
 	if err != nil {
@@ -180,8 +182,14 @@ func (conn *ServerConn) HandleSessionChannel(wg *sync.WaitGroup, newChan ssh.New
 				dbg.Debug("Error unmarshaling exec: %v", err)
 				success = false
 			} else {
-				conn.ExecuteForChannel([]string{execReq.Cmd}, ch)
-				success = true
+				if cmd, err := shlex.Split(execReq.Cmd); err == nil {
+					dbg.Debug("Command: %v", cmd)
+					conn.ExecuteForChannel(cmd, ch)
+					success = true
+				} else {
+					dbg.Debug("Error splitting cmd: %v", err)
+					success = false
+				}
 			}
 			if req.WantReply {
 				req.Reply(success, []byte{})
