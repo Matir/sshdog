@@ -344,6 +344,7 @@ func (conn *ServerConn) SCPSink(path string, dirMode bool, ch ssh.Channel) error
 		if err != nil {
 			if err == io.EOF {
 				// EOF here isn't bad
+				dbg.Debug("eof in scp sink")
 				scpSendAck(ch, 0, "")
 				return nil
 			}
@@ -352,6 +353,7 @@ func (conn *ServerConn) SCPSink(path string, dirMode bool, ch ssh.Channel) error
 			return err
 		}
 		if cmd == SCP_END_COMMANDS {
+			dbg.Debug("continue scp")
 			continue
 		}
 		// Parse it
@@ -361,6 +363,7 @@ func (conn *ServerConn) SCPSink(path string, dirMode bool, ch ssh.Channel) error
 			dbg.Debug("error in scp sink: %v", err)
 			return err
 		}
+		dbg.Debug("scp command: %v", parsed)
 		switch parsed.CommandType {
 		case SCPCopy:
 			if err := scpSendAck(ch, 0, ""); err != nil {
@@ -381,13 +384,13 @@ func (conn *ServerConn) SCPSink(path string, dirMode bool, ch ssh.Channel) error
 			path = filepath.Clean(filepath.Join(path, ".."))
 		case SCPTime:
 		}
-		dbg.Debug("scp command: %v", parsed)
 	}
 	return nil
 }
 
 func receiveFile(name string, cmd *SCPCommand, src io.Reader) error {
 	left := cmd.Length
+	os.Remove(name) // to rewrite
 	fp, err := os.Create(name)
 	if err != nil {
 		return err
