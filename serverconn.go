@@ -33,10 +33,11 @@ import (
 type ServerConn struct {
 	*Server
 	*ssh.ServerConn
-	pty     *pty.Pty
-	reqs    <-chan *ssh.Request
-	chans   <-chan ssh.NewChannel
-	environ []string
+	pty        *pty.Pty
+	reqs       <-chan *ssh.Request
+	chans      <-chan ssh.NewChannel
+	environ    []string
+	exitStatus uint32
 }
 
 func NewServerConn(conn net.Conn, s *Server) (*ServerConn, error) {
@@ -129,6 +130,8 @@ func (conn *ServerConn) HandleSessionChannel(wg *sync.WaitGroup, newChan ssh.New
 		return
 	}
 	defer func() {
+		b := ssh.Marshal(struct{ ExitStatus uint32 }{conn.exitStatus})
+		ch.SendRequest("exit-status", false, b)
 		dbg.Debug("Closing session channel.")
 		ch.Close()
 	}()
