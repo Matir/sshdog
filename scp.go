@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"golang.org/x/crypto/ssh"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -94,11 +95,57 @@ func (conn *ServerConn) SCPSource(path string, dirMode bool, recursive bool, ch 
 		return err
 	}
 	if recursive {
+		return SCPSendDir(path, nil, src, ch)
 	}
 	return SCPSendFile(path, src, ch)
 }
 
-// Send a path
+// Send a directory
+func SCPSendDir(path string, fi os.FileInfo, src *bufio.Reader, dst io.Writer) error {
+	if fi == nil {
+		if statfi, err := os.Stat(path); err != nil {
+			return err
+		} else {
+			fi = statfi
+		}
+	}
+
+	dbg.Debug("Preparing to send dir: %s", path)
+	cmd := buildSCPCommand(fi)
+	if _, err := dst.Write([]byte(cmd)); err != nil {
+		return err
+	}
+	dbg.Debug("sent header")
+	if err := readAck(src); err != nil {
+		return err
+	}
+
+	// Children
+	if contents, err := ioutil.ReadDir(path); err != nil {
+		scpSendAck(dst, SCPFatal, err.Error())
+		return err
+	} else {
+		for _, child := range contents {
+			lpath := filepath.Join(path, child.Name())
+			if child.IsDir() {
+				SCPSendDir(lpath, child, src, dst)
+			} else {
+				SCPSendFile2(lpath, child, src, dst)
+			}
+		}
+	}
+
+	if _, err := dst.Write([]byte("E\n")); err != nil {
+		return err
+	}
+	if err := readAck(src); err != nil {
+		return err
+	}
+	dbg.Debug("Done sending dir: %s", path)
+	return nil
+}
+
+// Send a file
 func SCPSendFile(path string, src *bufio.Reader, dst io.Writer) error {
 	dbg.Debug("Preparing to send %s", path)
 	fi, err := os.Stat(path)
