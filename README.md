@@ -10,8 +10,29 @@ Useful for:
 * Backup SSHD
 * Authenticated remote bind shells
 
-At this time it only supports shells and port forwarding and only public key authentication
-is supported.
+Supported features:
+
+* Windows & Linux
+* Configure port, host key, authorized keys
+* Pubkey authentication (no passwords)
+* Port forwarding
+* SCP (but no SFTP support)
+
+Example usage:
+
+```
+% go build .
+% ssh-keygen -t rsa -b 2048 -N '' -f config/ssh_host_rsa_key
+% echo 2222 > config/port
+% cp ~/.ssh/id_rsa.pub config/authorized_keys
+% rice append --exec sshdog
+% ./sshdog
+[DEBUG] Adding hostkey file: ssh_host_rsa_key
+[DEBUG] Adding authorized_keys.
+[DEBUG] Listening on :2222
+[DEBUG] Waiting for shutdown.
+[DEBUG] select...
+```
 
 Author: David Tomaschik <dwt@google.com>
 
