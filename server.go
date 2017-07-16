@@ -16,6 +16,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"fmt"
 	"golang.org/x/crypto/ssh"
 	"io"
@@ -167,9 +169,24 @@ func (s *Server) VerifyPublicKey(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh
 	return &ssh.Permissions{}, nil
 }
 
-func (s *Server) AddHostkey(keyData []byte) {
+func (s *Server) AddHostkey(keyData []byte) error {
 	key, err := ssh.ParsePrivateKey(keyData)
 	if err == nil {
 		s.ServerConfig.AddHostKey(key)
+		return nil
 	}
+	return err
+}
+
+func (s *Server) RandomHostkey() error {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return err
+	}
+	signer, err := ssh.NewSignerFromSigner(key)
+	if err != nil {
+		return err
+	}
+	s.ServerConfig.AddHostKey(signer)
+	return nil
 }

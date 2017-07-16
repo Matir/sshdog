@@ -86,7 +86,9 @@ func main() {
 		}
 	} else {
 		waitFunc, _ := daemonStart()
-		waitFunc()
+		if waitFunc != nil {
+			waitFunc()
+		}
 	}
 }
 
@@ -113,13 +115,17 @@ func daemonStart() (waitFunc func(), stopFunc func()) {
 	for _, keyName := range keyNames {
 		if keyData, err := mainBox.Bytes(keyName); err == nil {
 			dbg.Debug("Adding hostkey file: %s", keyName)
-			server.AddHostkey(keyData)
+			if err = server.AddHostkey(keyData); err != nil {
+				dbg.Debug("Error adding public key: %v", err)
+			}
 			hasHostKeys = true
 		}
 	}
 	if !hasHostKeys {
-		dbg.Debug("No host keys found!")
-		return
+		if err := server.RandomHostkey(); err != nil {
+			dbg.Debug("Error adding random hostkey: %v", err)
+			return
+		}
 	}
 
 	if authData, err := mainBox.Bytes("authorized_keys"); err == nil {
