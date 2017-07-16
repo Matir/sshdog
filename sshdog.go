@@ -74,7 +74,7 @@ func beQuiet(box *rice.Box) bool {
 var mainBox *rice.Box
 
 func main() {
-	mainBox = rice.MustFindBox("config")
+	mainBox = mustFindBox("config")
 
 	if beQuiet(mainBox) {
 		dbg = false
@@ -87,6 +87,21 @@ func main() {
 	} else {
 		waitFunc, _ := daemonStart()
 		waitFunc()
+	}
+}
+
+func mustFindBox(name string) *rice.Box {
+	cfg := &rice.Config{
+		LocateOrder: []rice.LocateMethod{
+			rice.LocateAppended,
+			rice.LocateEmbedded,
+			rice.LocateWorkingDirectory,
+		},
+	}
+	if box, err := cfg.FindBox(name); err != nil {
+		panic(err)
+	} else {
+		return box
 	}
 }
 
