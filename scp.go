@@ -417,7 +417,8 @@ func scpSendAck(dst io.Writer, code int, msg string) error {
 
 // Send an error message
 func scpSendError(dst io.Writer, err error) error {
-	buf := []byte(err.Error())
+	buf := []byte{1}
+	buf = append(buf, []byte(err.Error())...)
 	buf = append(buf, byte('\n'))
 	return scpWriter(dst, buf)
 }
