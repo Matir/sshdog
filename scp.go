@@ -82,10 +82,16 @@ func (conn *ServerConn) SCPHandler(shellCmd []string, ch ssh.Channel) error {
 		}
 	}
 
+	var err error
 	if source {
-		return conn.SCPSource(path, dirMode, recursive, ch)
+		err = conn.SCPSource(path, dirMode, recursive, ch)
+	} else {
+		err = conn.SCPSink(path, dirMode, ch)
 	}
-	return conn.SCPSink(path, dirMode, ch)
+	if err != nil {
+		scpSendError(ch, err)
+	}
+	return err
 }
 
 // Handle the 'source' side of an SCP connection
@@ -406,6 +412,18 @@ func scpSendAck(dst io.Writer, code int, msg string) error {
 		buf = append(buf, []byte(msg)...)
 		buf = append(buf, byte('\n'))
 	}
+	return scpWriter(dst, buf)
+}
+
+// Send an error message
+func scpSendError(dst io.Writer, err error) error {
+	buf := []byte(err.Error())
+	buf = append(buf, byte('\n'))
+	return scpWriter(dst, buf)
+}
+
+// Write all bytes
+func scpWriter(dst io.Writer, buf []byte) error {
 	sent := 0
 	for sent < len(buf) {
 		s, err := dst.Write(buf[sent:])
