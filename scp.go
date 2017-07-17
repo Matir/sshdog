@@ -91,6 +91,7 @@ func (conn *ServerConn) SCPHandler(shellCmd []string, ch ssh.Channel) error {
 	if err != nil {
 		scpSendError(ch, err)
 	}
+	ch.CloseWrite()
 	return err
 }
 
@@ -417,7 +418,7 @@ func scpSendAck(dst io.Writer, code int, msg string) error {
 
 // Send an error message
 func scpSendError(dst io.Writer, err error) error {
-	buf := []byte{1}
+	buf := []byte("\x01scp: ")
 	buf = append(buf, []byte(err.Error())...)
 	buf = append(buf, byte('\n'))
 	return scpWriter(dst, buf)

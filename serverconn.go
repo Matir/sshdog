@@ -190,6 +190,7 @@ func (conn *ServerConn) HandleSessionChannel(wg *sync.WaitGroup, newChan ssh.New
 					if cmd[0] == "scp" {
 						if err := conn.SCPHandler(cmd, ch); err != nil {
 							dbg.Debug("scp failure: %v", err)
+							conn.exitStatus = 1
 							success = false
 						} else {
 							success = true
