@@ -204,25 +204,23 @@ func (conn *ServerConn) HandleSessionChannel(wg *sync.WaitGroup, newChan ssh.New
 			} else {
 				if cmd, err := shlex.Split(execReq.Cmd); err == nil {
 					dbg.Debug("Command: %v", cmd)
+					if req.WantReply {
+						req.Reply(true, []byte{})
+					}
 					if cmd[0] == "scp" {
 						if err := conn.SCPHandler(cmd, ch); err != nil {
 							dbg.Debug("scp failure: %v", err)
 							conn.exitStatus = 1
-							success = false
-						} else {
-							success = true
 						}
 					} else {
 						conn.ExecuteForChannel(commandWithShell(execReq.Cmd), ch)
-						success = true
 					}
 				} else {
 					dbg.Debug("Error splitting cmd: %v", err)
-					success = false
+					if req.WantReply {
+						req.Reply(false, []byte{})
+					}
 				}
-			}
-			if req.WantReply {
-				req.Reply(success, []byte{})
 			}
 			return
 		default:
