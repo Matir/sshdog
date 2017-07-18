@@ -219,13 +219,15 @@ func (conn *ServerConn) HandleSessionChannel(wg *sync.WaitGroup, newChan ssh.New
 
 // Execute a process for the channel.
 func (conn *ServerConn) ExecuteForChannel(shellCmd []string, ch ssh.Channel) {
+	dbg.Debug("Executing %v", shellCmd)
 	proc := exec.Command(shellCmd[0], shellCmd[1:]...)
 	proc.Env = conn.environ
 	if userInfo, err := user.Current(); err == nil {
 		proc.Dir = userInfo.HomeDir
 	}
 	if conn.pty == nil {
-		proc.Stdin = ch
+		stdin, _ := proc.StdinPipe()
+		go io.Copy(stdin, ch)
 		proc.Stdout = ch
 		proc.Stderr = ch
 	} else {
@@ -233,6 +235,7 @@ func (conn *ServerConn) ExecuteForChannel(shellCmd []string, ch ssh.Channel) {
 		conn.pty.AttachIO(ch, ch)
 	}
 	proc.Run()
+	dbg.Debug("Finished execution.")
 }
 
 // Message for port forwarding
