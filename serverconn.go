@@ -121,6 +121,23 @@ func defaultShell() []string {
 	}
 }
 
+func commandWithShell(command string) []string {
+	switch runtime.GOOS {
+	case "windows":
+		return []string{
+			"C:\\windows\\system32\\cmd.exe",
+			"/C",
+			command,
+		}
+	default:
+		return []string{
+			"/bin/sh",
+			"-c",
+			command,
+		}
+	}
+}
+
 func (conn *ServerConn) HandleSessionChannel(wg *sync.WaitGroup, newChan ssh.NewChannel) {
 	// TODO: refactor this, too long
 	defer wg.Done()
@@ -196,7 +213,7 @@ func (conn *ServerConn) HandleSessionChannel(wg *sync.WaitGroup, newChan ssh.New
 							success = true
 						}
 					} else {
-						conn.ExecuteForChannel(cmd, ch)
+						conn.ExecuteForChannel(commandWithShell(execReq.Cmd), ch)
 						success = true
 					}
 				} else {
