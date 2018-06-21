@@ -74,7 +74,7 @@ func beQuiet(box *rice.Box) bool {
 var mainBox *rice.Box
 
 func main() {
-	mainBox = mustFindBox("config")
+	mainBox = mustFindBox()
 
 	if beQuiet(mainBox) {
 		dbg = false
@@ -92,15 +92,17 @@ func main() {
 	}
 }
 
-func mustFindBox(name string) *rice.Box {
-	cfg := &rice.Config{
+func mustFindBox() *rice.Box {
+	// Overloading name 'rice' due to bug in rice to be fixed in 2.0:
+	// https://github.com/GeertJohan/go.rice/issues/58
+	rice := &rice.Config{
 		LocateOrder: []rice.LocateMethod{
 			rice.LocateAppended,
 			rice.LocateEmbedded,
 			rice.LocateWorkingDirectory,
 		},
 	}
-	if box, err := cfg.FindBox(name); err != nil {
+	if box, err := rice.FindBox("config"); err != nil {
 		panic(err)
 	} else {
 		return box
