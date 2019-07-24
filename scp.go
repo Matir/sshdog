@@ -357,7 +357,7 @@ func scpReadCommand(src *bufio.Reader) (string, error) {
 // Parse the SCP command
 func parseSCPCommand(cmd string) (*SCPCommand, error) {
 	parsePieces := func(cstr string, c *SCPCommand) error {
-		pieces := strings.Split(cmd, " ")
+		pieces := strings.SplitN(cmd, " ", 3)
 		if len(pieces) != 3 {
 			return ErrInvalidPieces
 		}
