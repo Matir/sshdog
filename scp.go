@@ -13,19 +13,21 @@
 // limitations under the License.
 
 // TODO: High-level file comment.
-package main
+package sshdog
 
 import (
 	"bufio"
 	"errors"
 	"fmt"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/matir/sshdog/dbg"
+	"golang.org/x/crypto/ssh"
 )
 
 const (

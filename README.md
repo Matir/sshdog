@@ -21,7 +21,7 @@ Supported features:
 Example usage:
 
 ```
-% go build .
+% go build ./cmd/sshdog
 % ssh-keygen -t rsa -b 2048 -N '' -f config/ssh_host_rsa_key
 % echo 2222 > config/port
 % cp ~/.ssh/id_rsa.pub config/authorized_keys

@@ -13,16 +13,18 @@
 // limitations under the License.
 
 // TODO: High-level file comment.
-package main
+package sshdog
 
 import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"net"
 	"strconv"
+
+	"github.com/matir/sshdog/dbg"
+	"golang.org/x/crypto/ssh"
 )
 
 // Manage the SSH Server
@@ -34,7 +36,7 @@ type Server struct {
 	done           chan bool
 }
 
-var keyNames = []string{
+var KeyNames = []string{
 	"ssh_host_dsa_key",
 	"ssh_host_ecdsa_key",
 	"ssh_host_rsa_key",

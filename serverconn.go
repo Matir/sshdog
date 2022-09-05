@@ -13,13 +13,10 @@
 // limitations under the License.
 
 // TODO: High-level file comment.
-package main
+package sshdog
 
 import (
 	"fmt"
-	"github.com/google/shlex"
-	"github.com/matir/sshdog/pty"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"net"
 	"os"
@@ -27,6 +24,11 @@ import (
 	"os/user"
 	"runtime"
 	"sync"
+
+	"github.com/google/shlex"
+	"github.com/matir/sshdog/dbg"
+	"github.com/matir/sshdog/pty"
+	"golang.org/x/crypto/ssh"
 )
 
 // Handling for a single incoming connection
