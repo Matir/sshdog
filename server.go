@@ -19,10 +19,11 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"net"
 	"strconv"
+
+	"golang.org/x/crypto/ssh"
 )
 
 // Manage the SSH Server
@@ -105,7 +106,7 @@ func (s *Server) serveLoop() error {
 		select {
 		case conn, ok := <-acceptChan:
 			if ok {
-				s.handleConn(conn)
+				go s.handleConn(conn)
 			} else {
 				dbg.Debug("failed to accept")
 				acceptChan = nil
