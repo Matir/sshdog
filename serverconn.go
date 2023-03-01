@@ -17,9 +17,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/google/shlex"
-	"github.com/matir/sshdog/pty"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"net"
 	"os"
@@ -27,6 +24,10 @@ import (
 	"os/user"
 	"runtime"
 	"sync"
+
+	"github.com/google/shlex"
+	"github.com/matir/sshdog/pty"
+	"golang.org/x/crypto/ssh"
 )
 
 // Handling for a single incoming connection
@@ -244,7 +245,7 @@ func (conn *ServerConn) ExecuteForChannel(shellCmd []string, ch ssh.Channel) {
 		stdin, _ := proc.StdinPipe()
 		go io.Copy(stdin, ch)
 		proc.Stdout = ch
-		proc.Stderr = ch
+		proc.Stderr = ch.Stderr()
 	} else {
 		conn.pty.AttachPty(proc)
 		conn.pty.AttachIO(ch, ch)
