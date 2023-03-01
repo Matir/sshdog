@@ -16,10 +16,8 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	"github.com/google/shlex"
-	"github.com/matir/sshdog/pty"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"net"
 	"os"
@@ -27,6 +25,10 @@ import (
 	"os/user"
 	"runtime"
 	"sync"
+
+	"github.com/google/shlex"
+	"github.com/matir/sshdog/pty"
+	"golang.org/x/crypto/ssh"
 )
 
 // Handling for a single incoming connection
@@ -213,7 +215,7 @@ func (conn *ServerConn) HandleSessionChannel(wg *sync.WaitGroup, newChan ssh.New
 							conn.exitStatus = 1
 						}
 					} else {
-						conn.ExecuteForChannel(commandWithShell(execReq.Cmd), ch)
+						conn.exitStatus = conn.ExecuteForChannel(commandWithShell(execReq.Cmd), ch)
 					}
 				} else {
 					dbg.Debug("Error splitting cmd: %v", err)
@@ -233,8 +235,9 @@ func (conn *ServerConn) HandleSessionChannel(wg *sync.WaitGroup, newChan ssh.New
 }
 
 // Execute a process for the channel.
-func (conn *ServerConn) ExecuteForChannel(shellCmd []string, ch ssh.Channel) {
+func (conn *ServerConn) ExecuteForChannel(shellCmd []string, ch ssh.Channel) uint32 {
 	dbg.Debug("Executing %v", shellCmd)
+	var exerr *exec.ExitError
 	proc := exec.Command(shellCmd[0], shellCmd[1:]...)
 	proc.Env = conn.environ
 	if userInfo, err := user.Current(); err == nil {
@@ -249,8 +252,14 @@ func (conn *ServerConn) ExecuteForChannel(shellCmd []string, ch ssh.Channel) {
 		conn.pty.AttachPty(proc)
 		conn.pty.AttachIO(ch, ch)
 	}
-	proc.Run()
-	dbg.Debug("Finished execution.")
+	err := proc.Run()
+	if errors.As(err, &exerr) {
+		dbg.Debug("Finished execution with error: %v", err)
+		return uint32(exerr.ExitCode())
+	} else {
+		dbg.Debug("Finished execution.")
+		return 0
+	}
 }
 
 // Message for port forwarding
