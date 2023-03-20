@@ -248,7 +248,7 @@ func (conn *ServerConn) ExecuteForChannel(shellCmd []string, ch ssh.Channel) {
 			io.Copy(stdin, ch)
 		}()
 		proc.Stdout = ch
-		proc.Stderr = ch
+		proc.Stderr = ch.Stderr()
 	} else {
 		conn.pty.AttachPty(proc)
 		conn.pty.AttachIO(ch, ch)
