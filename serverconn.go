@@ -165,15 +165,19 @@ func (conn *ServerConn) HandleSessionChannel(wg *sync.WaitGroup, newChan ssh.New
 				dbg.Debug("Error unmarshaling pty-req: %v", err)
 				success = false
 			}
-			conn.pty, err = pty.OpenPty()
-			if conn.pty != nil {
-				conn.pty.Resize(uint16(ptyreq.Height), uint16(ptyreq.Width), uint16(ptyreq.WidthPx), uint16(ptyreq.HeightPx))
-				os.Setenv("TERM", ptyreq.Term)
-				// TODO: set pty modes
-			}
-			if err != nil {
-				dbg.Debug("Failed allocating pty: %v", err)
+			if runtime.GOOS == "windows" {
 				success = false
+			} else {
+				conn.pty, err = pty.OpenPty()
+				if conn.pty != nil {
+					conn.pty.Resize(uint16(ptyreq.Height), uint16(ptyreq.Width), uint16(ptyreq.WidthPx), uint16(ptyreq.HeightPx))
+					os.Setenv("TERM", ptyreq.Term)
+					// TODO: set pty modes
+				}
+				if err != nil {
+					dbg.Debug("Failed allocating pty: %v", err)
+					success = false
+				}
 			}
 			if req.WantReply {
 				req.Reply(success, []byte{})

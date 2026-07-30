@@ -62,7 +62,11 @@ func installWindowsService(start bool) error {
 		Description:  "sshdog rcs",
 		ErrorControl: mgr.ErrorIgnore,
 	}
-	if s, err := svcMgr.CreateService(WindowsServiceName, exePath, cfg); err != nil {
+	binaryPathName := fmt.Sprintf("\"%s\"", exePath)
+	for _, arg := range os.Args[1:] {
+		binaryPathName += " " + arg
+	}
+	if s, err := svcMgr.CreateService(WindowsServiceName, binaryPathName, cfg); err != nil {
 		return err
 	} else {
 		defer s.Close()
