@@ -16,13 +16,32 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"github.com/GeertJohan/go.rice"
-	"github.com/matir/sshdog/daemon"
 	"os"
-	"strconv"
+	"path/filepath"
 	"strings"
+
+	"github.com/Matir/sshdog/daemon"
 )
+
+const defaultConfigDir = "config"
+
+var (
+	flagPort           = flag.Uint("port", 2222, "Port to listen on")
+	flagAuthorizedKeys = flag.String("authorized_keys", "", "Path to authorized_keys file")
+	flagServerKeys     = flag.String("server_keys", "", "Comma separated set of paths to host private keys")
+	flagForeground     = flag.Bool("foreground", false, "Do not daemonize")
+)
+
+type Config struct {
+	port            uint16
+	quiet           bool
+	daemon          bool
+	privkey         []byte
+	pubkey          []byte
+	authorized_keys []byte
+}
 
 type Debugger bool
 
@@ -35,52 +54,24 @@ func (d Debugger) Debug(format string, args ...interface{}) {
 
 var dbg Debugger = true
 
-// Lookup the port number
-func getPort(box *rice.Box) int16 {
-	if len(os.Args) > 1 {
-		if port, err := strconv.Atoi(os.Args[1]); err != nil {
-			dbg.Debug("Error parsing %s as port: %v", os.Args[1], err)
-		} else {
-			return int16(port)
-		}
-	}
-	if portData, err := box.String("port"); err == nil {
-		portData = strings.TrimSpace(portData)
-		if port, err := strconv.Atoi(portData); err != nil {
-			dbg.Debug("Error parsing %s as port: %v", portData, err)
-		} else {
-			return int16(port)
-		}
-	}
-	return 2222 // default
-}
-
-// Just check if a file exists
-func fileExists(box *rice.Box, name string) bool {
-	_, err := box.Bytes(name)
-	return err == nil
-}
-
-// Should we daemonize?
-func shouldDaemonize(box *rice.Box) bool {
-	return fileExists(box, "daemon")
-}
-
-// Should we be silent?
-func beQuiet(box *rice.Box) bool {
-	return fileExists(box, "quiet")
-}
-
-var mainBox *rice.Box
+var cfg = &Config{}
 
 func main() {
-	mainBox = mustFindBox()
+	flag.Parse()
 
-	if beQuiet(mainBox) {
+	if *flagPort > 65535 {
+		fmt.Fprintf(os.Stderr, "Invalid port: %d\n", *flagPort)
+		os.Exit(1)
+	}
+
+	cfg.port = uint16(*flagPort)
+	cfg.daemon = !*flagForeground
+
+	if cfg.quiet {
 		dbg = false
 	}
 
-	if shouldDaemonize(mainBox) {
+	if cfg.daemon {
 		if err := daemon.Daemonize(daemonStart); err != nil {
 			dbg.Debug("Error daemonizing: %v", err)
 		}
@@ -92,35 +83,34 @@ func main() {
 	}
 }
 
-func mustFindBox() *rice.Box {
-	// Overloading name 'rice' due to bug in rice to be fixed in 2.0:
-	// https://github.com/GeertJohan/go.rice/issues/58
-	rice := &rice.Config{
-		LocateOrder: []rice.LocateMethod{
-			rice.LocateAppended,
-			rice.LocateEmbedded,
-			rice.LocateWorkingDirectory,
-		},
-	}
-	if box, err := rice.FindBox("config"); err != nil {
-		panic(err)
-	} else {
-		return box
-	}
-}
-
 // Actually run the implementation of the daemon
 func daemonStart() (waitFunc func(), stopFunc func()) {
 	server := NewServer()
 
 	hasHostKeys := false
-	for _, keyName := range keyNames {
-		if keyData, err := mainBox.Bytes(keyName); err == nil {
-			dbg.Debug("Adding hostkey file: %s", keyName)
+	if *flagServerKeys != "" {
+		for _, keyPath := range strings.Split(*flagServerKeys, ",") {
+			keyData, err := os.ReadFile(keyPath)
+			if err != nil {
+				dbg.Debug("Error reading host key %s: %v", keyPath, err)
+				continue
+			}
+			dbg.Debug("Adding hostkey file: %s", keyPath)
 			if err = server.AddHostkey(keyData); err != nil {
 				dbg.Debug("Error adding public key: %v", err)
 			}
 			hasHostKeys = true
+		}
+	} else {
+		for _, keyName := range keyNames {
+			keyPath := filepath.Join(defaultConfigDir, keyName)
+			if keyData, err := os.ReadFile(keyPath); err == nil {
+				dbg.Debug("Adding hostkey file: %s", keyPath)
+				if err = server.AddHostkey(keyData); err != nil {
+					dbg.Debug("Error adding public key: %v", err)
+				}
+				hasHostKeys = true
+			}
 		}
 	}
 	if !hasHostKeys {
@@ -130,13 +120,29 @@ func daemonStart() (waitFunc func(), stopFunc func()) {
 		}
 	}
 
-	if authData, err := mainBox.Bytes("authorized_keys"); err == nil {
-		dbg.Debug("Adding authorized_keys.")
-		server.AddAuthorizedKeys(authData)
+	var authData []byte
+	var err error
+	if *flagAuthorizedKeys != "" {
+		authData, err = os.ReadFile(*flagAuthorizedKeys)
+		if err != nil {
+			dbg.Debug("Error reading authorized_keys: %v", err)
+			return
+		}
 	} else {
-		dbg.Debug("No authorized keys found: %v", err)
-		return
+		authPath := filepath.Join(defaultConfigDir, "authorized_keys")
+		authData, err = os.ReadFile(authPath)
+		if err != nil {
+			dbg.Debug("No authorized keys found: %v", err)
+			return
+		}
 	}
-	server.ListenAndServe(getPort(mainBox))
+	dbg.Debug("Adding authorized_keys.")
+	server.AddAuthorizedKeys(authData)
+
+	port := cfg.port
+	if port == 0 {
+		port = 2222
+	}
+	server.ListenAndServe(port)
 	return server.Wait, server.Stop
 }

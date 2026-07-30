@@ -41,7 +41,7 @@ func Daemonize(f DaemonWorker) error {
 		return err
 	}
 
-	cmd := exec.Command(bin)
+	cmd := exec.Command(bin, os.Args[1:]...)
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}

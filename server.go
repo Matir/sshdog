@@ -50,7 +50,7 @@ func NewServer() *Server {
 	return s
 }
 
-func (s *Server) listen(port int16) error {
+func (s *Server) listen(port uint16) error {
 	sPort := ":" + strconv.Itoa(int(port))
 	if sock, err := net.Listen("tcp", sPort); err != nil {
 		dbg.Debug("Unable to listen: %v", err)
@@ -120,7 +120,7 @@ func (s *Server) serveLoop() error {
 	return nil
 }
 
-func (s *Server) ListenAndServe(port int16) (error, func()) {
+func (s *Server) ListenAndServe(port uint16) (error, func()) {
 	if err := s.listen(port); err != nil {
 		return err, nil
 	}
@@ -128,7 +128,7 @@ func (s *Server) ListenAndServe(port int16) (error, func()) {
 	return nil, s.Stop
 }
 
-func (s *Server) ListenAndServeForever(port int16) error {
+func (s *Server) ListenAndServeForever(port uint16) error {
 	if err, _ := s.ListenAndServe(port); err != nil {
 		return err
 	}
